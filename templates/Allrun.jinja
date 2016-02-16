@@ -1,0 +1,26 @@
+#!/bin/sh
+. $WM_PROJECT_DIR/bin/tools/RunFunctions
+
+orig=$PWD
+n={{data.n_blades}}
+declare -A d[$n]
+{%- for i in data.rotate %}
+d[{{ loop.index0 }}]="{{ i|f1 }}"
+{%- endfor %}
+
+cd $orig
+rm log.*
+runApplication blockMesh
+
+for (( i=0; i < $n; i++ ))
+do
+	temp=$HOME/$(mktemp)-$i
+	mkdir -p $temp
+	cp -a $orig/* $temp
+	cd $temp
+	runApplication transformPoints -rotate "( (1 0 0) ${d[$i]} )"
+	runApplication mergeMeshes $orig $temp
+	cp -rf $orig/1/* $orig/constant/
+	rm -rf $orig/1
+	rm -rf $temp
+done
