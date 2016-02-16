@@ -192,7 +192,7 @@ class Blade(object):
 
     def view(self):
         display, start_display, add_menu, add_function_to_menu = init_display()
-        blade = self.OCCBladeModel()
+        blade = self.__OCCBladeModel()
         display.DisplayShape(blade)
         display.FitAll()
         start_display()
@@ -219,7 +219,7 @@ class Blade(object):
         surf = mlab.pipeline.surface(edges, colormap='jet')
         mlab.show()
 
-    def OCCBladeModel(self):
+    def __OCCBladeModel(self):
         #FIXME revisar completo
         """
 
@@ -260,7 +260,7 @@ class Blade(object):
 
         :param file:
         """
-        blade = self.OCCBladeModel()
+        blade = self.__OCCBladeModel()
         stl_output_file = file
         stl_ascii_format = False
 
@@ -273,7 +273,7 @@ class Blade(object):
         :param file:
         """
         print('Creating "' + file + '" this may take awhile')
-        blade = self.OCCBladeModel
+        blade = self.__OCCBladeModel
 
         # initialize the STEP exporter
         step_writer = STEPControl_Writer()
@@ -302,7 +302,7 @@ class Rotor(object):
     def __OCCRotorModel(self):
         angular = np.radians(360 / self.rotor['n_blades'])
         blade = self.rotor['blade']
-        bladeShape = blade.OCCBladeModel()
+        bladeShape = blade.__OCCBladeModel()
         shapes = []
         my_Trsf = gp_Trsf()
 
