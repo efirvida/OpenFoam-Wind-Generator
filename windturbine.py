@@ -413,26 +413,26 @@ class OpenFoamBlockMesh(object):
         self.__div_angle = np.deg2rad(360 / self.n_blades - 90)
 
     def topology_1(self, n_point=0):
-        blade = self.blade  # coordenadas de los perfiles de la pala
-
         for airfoil in self.blade:
             coords = airfoil['airfoil'].coordinates
             midline = midLine(coords)
 
+            #FIXME make 3d offset
             offset_airfoil = offset(coords[:, [0, 2]], self.airfoil_offset)
             if airfoil['airfoil'].type is 'circle':
                 offset_airfoil = offset_airfoil[:-100]
+            offset_airfoil = np.insert(offset_airfoil, 1, airfoil['position'][2], axis=1)
 
             p1_2_distance = 1 / 8.
             angle = 80.
             p0 = midline[len(midline) * (1 - p1_2_distance)]
             p1 = midline[len(midline) / 2]
             p2 = midline[len(midline) * p1_2_distance]
-            p3 = intersection(p2[0], p2[2], angle, coords[:, [0, 2]], x1=max(offset_airfoil[:,0]))
-            p4 = intersection(p0[0], p0[2], -angle, coords[:, [0, 2]], x1=min(offset_airfoil[:,0]))
+            p3 = intersection(p2[0], p2[2], angle, coords[:, [0, 2]], x1=max(offset_airfoil[:, 0]))
+            p4 = intersection(p0[0], p0[2], -angle, coords[:, [0, 2]], x1=min(offset_airfoil[:, 0]))
             p5 = coords[len(coords) / 2]
-            p6 = intersection(p0[0], p0[2], angle, coords[:, [0, 2]], x1=min(offset_airfoil[:,0]))
-            p7 = intersection(p2[0], p2[2], -angle, coords[:, [0, 2]], x1=max(offset_airfoil[:,0]))
+            p6 = intersection(p0[0], p0[2], angle, coords[:, [0, 2]], x1=min(offset_airfoil[:, 0]))
+            p7 = intersection(p2[0], p2[2], -angle, coords[:, [0, 2]], x1=max(offset_airfoil[:, 0]))
             p8 = coords[0]
 
             p23 = (self.rotor_disk_length[1],
@@ -448,18 +448,19 @@ class OpenFoamBlockMesh(object):
                    airfoil['position'][2],
                    -self.hub)
 
-            map(lambda x: x[0].insert(1,airfoil['position'][2]),[p3,p4,p6,p7])
+            map(lambda x: x[0].insert(1, airfoil['position'][2]), [p3, p4, p6, p7])
 
             arc0 = np.array(arc3points(p0, p4[0], p28))
             arc1 = np.array(arc3points(p0, p6[0], p31))
             arc2 = np.array(arc3points(p2, p3[0], p23))
             arc3 = np.array(arc3points(p2, p7[0], p36))
 
-            map(lambda x: x[~np.isnan(x).any(axis=1)],[arc0,arc1,arc2,arc3])
+            map(lambda x: x[~np.isnan(x).any(axis=1)], [arc0, arc1, arc2, arc3])
 
-
-
-
+            p10 = nearest(arc0, offset_airfoil)[0]
+            p11 = nearest(arc1, offset_airfoil)[0]
+            p13 = nearest(arc2, offset_airfoil)[0]
+            p14 = nearest(arc3, offset_airfoil)[0]
 
             fig = plt.figure()
             ax = fig.add_subplot(111, aspect='equal')
@@ -467,7 +468,7 @@ class OpenFoamBlockMesh(object):
             ax.plot(midline[:, 0], midline[:, 2])
             ax.plot(coords[len(coords) / 2, 0], coords[len(coords) / 2, 2], 'mo')
             ax.plot(coords[0, 0], coords[0, 2], 'mo')
-            ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 1], 'm')
+            ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 2], 'm')
             ax.plot(p0[0], p0[2], 'mo')
             ax.plot(p1[0], p1[2], 'ro')
             ax.plot(p2[0], p2[2], 'bo')
@@ -477,11 +478,15 @@ class OpenFoamBlockMesh(object):
             ax.plot(p6[0][0], p6[0][2], 'bo')
             ax.plot(p7[0][0], p7[0][2], 'bo')
             ax.plot(p8[0], p8[2], 'bo')
+            ax.plot(p10[0], p10[2], 'bo')
+            ax.plot(p11[0], p11[2], 'bo')
+            ax.plot(p13[0], p13[2], 'bo')
+            ax.plot(p14[0], p14[2], 'bo')
             ax.plot(p23[0], p23[2], 'bo')
             ax.plot(p28[0], p28[2], 'bo')
             ax.plot(p31[0], p31[2], 'bo')
             ax.plot(p36[0], p36[2], 'bo')
-
+            #
             ax.plot(arc0[:,0], arc0[:,2], 'b')
             ax.plot(arc1[:,0], arc1[:,2], 'b')
             ax.plot(arc2[:,0], arc2[:,2], 'b')
