@@ -304,22 +304,34 @@ def arc2points_np(center, pt1, pt2, resolution=100):
 
 
 def arc3points(pt1, pt2, pt3):
+
+    """
+    Genera las coordenadas de un arco que pasa por los puntos `pt1, pt2 y pt3`
+    sobre un plano XZ que pasa por el punto pt1
+
+    :param pt1:
+    :param pt2:
+    :param pt3:
+    :return:
+    """
     Xa = pt1[0]
     Xb = pt2[0]
     Xc = pt3[0]
-    Ya = pt1[1]
-    Yb = pt2[1]
-    Yc = pt3[1]
+    Ya = pt1[2]
+    Yb = pt2[2]
+    Yc = pt3[2]
     a = [
         [2 * (Xa - Xb), 2 * (Ya - Yb)],
         [2 * (Xa - Xc), 2 * (Ya - Yc)],
     ]
-    b = [-(Xb ** 2 + Yb ** 2 - Xa ** 2 - Ya ** 2), -(Xc ** 2 + Yc ** 2 - Xa ** 2 - Ya ** 2)]
+    b = [
+        -(Xb ** 2 + Yb ** 2 - Xa ** 2 - Ya ** 2),
+        -(Xc ** 2 + Yc ** 2 - Xa ** 2 - Ya ** 2)
+    ]
     X, Y = np.linalg.lstsq(a, b)[0]
 
-    points = arc2points((X, Y), pt1, pt3)
-
-    return points
+    points = arc2points_np((X, Y), (Xa,Ya), (Xc,Yc))
+    return np.insert(points,1,pt1[1],axis=1)
 
 
 def blend(coords, r, plane='xy'):
