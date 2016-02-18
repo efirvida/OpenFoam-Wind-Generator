@@ -29,13 +29,14 @@ myBlade = Blade(blade)
 rotor = {
     'blade': myBlade,
     'n_blades': 3,
-    'hub_radius': 0.4,
+    'hub_radius': 2.,
     'hub_length': 0.8,
 }
 
 myRotor = Rotor(rotor)
 study1 = Foam(rotor=rotor, path='OpenFoamCase_Prueba_periodico')
 study1.mesh.airfoil_offset = 0.1
+study1.mesh.rotor_disk_length = [2, 5]  # Longitud del disco del rotor, [frontal, trasera]
 study1.mesh.topology_1()
 
 # study1.mesh.tunnel_radius = 10

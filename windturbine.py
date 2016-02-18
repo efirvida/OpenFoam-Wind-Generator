@@ -163,7 +163,8 @@ class Blade(object):
                     tmp['airfoil'].coordinates = rotate2d(tmp['airfoil'].coordinates, tmp['twist'],
                                                           tmp['airfoil'].aerodynamic_center)
                 if self.blade['blade_twist']:
-                    tmp['airfoil'].coordinates = rotate2d(tmp['airfoil'].coordinates, self.blade['blade_twist'], (0.5, 0.))
+                    tmp['airfoil'].coordinates = rotate2d(tmp['airfoil'].coordinates, self.blade['blade_twist'],
+                                                          (0.5, 0.))
 
             # align the airfoil by aerodynamic center
             tmp['airfoil'].coordinates[:, 0] = (tmp['airfoil'].coordinates[:, 0] - tmp['airfoil'].aerodynamic_center[
@@ -220,7 +221,7 @@ class Blade(object):
         mlab.show()
 
     def __OCCBladeModel(self):
-        #FIXME revisar completo
+        # FIXME revisar completo
         """
 
 
@@ -402,7 +403,9 @@ class OpenFoamBlockMesh(object):
         self.convert_to_meters = 1.0  # factor de conversion de unidades a metros
         self.tunnel_radius = 80  # Radio del tunel
         self.tunnel_length = [80, 80]  # Longitud del tunel, [frontal, trasera]
-        self.airfoil_offset = 0.5 # distancia del perfil al perfil offset
+        self.rotor_disk_length = [20, 20]  # Longitud del tunel, [frontal, trasera]
+
+        self.airfoil_offset = 0.5  # distancia del perfil al perfil offset
 
         self.leading_edge_skewness_factor = 30
         self.leading_edge_region = 10
@@ -412,7 +415,6 @@ class OpenFoamBlockMesh(object):
     def topology_1(self, n_point=0):
         blade = self.blade  # coordenadas de los perfiles de la pala
 
-
         for airfoil in self.blade:
             coords = airfoil['airfoil'].coordinates
             midline = midLine(coords)
@@ -421,28 +423,73 @@ class OpenFoamBlockMesh(object):
             if airfoil['airfoil'].type is 'circle':
                 offset_airfoil = offset_airfoil[:-100]
 
-            p0 = midline[len(midline) * 5 / 6]
+            p1_2_distance = 1 / 8.
+            angle = 80.
+            p0 = midline[len(midline) * (1 - p1_2_distance)]
             p1 = midline[len(midline) / 2]
-            p2 = midline[len(midline) * 1 / 6]
-            p3 = coords[0]
-            p6 = coords[len(coords)/2]
+            p2 = midline[len(midline) * p1_2_distance]
+            p3 = intersection(p2[0], p2[2], angle, coords[:, [0, 2]], x1=max(offset_airfoil[:,0]))
+            p4 = intersection(p0[0], p0[2], -angle, coords[:, [0, 2]], x1=min(offset_airfoil[:,0]))
+            p5 = coords[len(coords) / 2]
+            p6 = intersection(p0[0], p0[2], angle, coords[:, [0, 2]], x1=min(offset_airfoil[:,0]))
+            p7 = intersection(p2[0], p2[2], -angle, coords[:, [0, 2]], x1=max(offset_airfoil[:,0]))
+            p8 = coords[0]
+
+            p23 = (self.rotor_disk_length[1],
+                   airfoil['position'][2],
+                   self.hub)
+            p28 = (-self.rotor_disk_length[0],
+                   airfoil['position'][2],
+                   self.hub)
+            p31 = (-self.rotor_disk_length[0],
+                   airfoil['position'][2],
+                   -self.hub)
+            p36 = (self.rotor_disk_length[1],
+                   airfoil['position'][2],
+                   -self.hub)
+
+            map(lambda x: x[0].insert(1,airfoil['position'][2]),[p3,p4,p6,p7])
+
+            arc0 = np.array(arc3points(p0, p4[0], p28))
+            arc1 = np.array(arc3points(p0, p6[0], p31))
+            arc2 = np.array(arc3points(p2, p3[0], p23))
+            arc3 = np.array(arc3points(p2, p7[0], p36))
+
+            map(lambda x: x[~np.isnan(x).any(axis=1)],[arc0,arc1,arc2,arc3])
+
+
+
 
 
             fig = plt.figure()
             ax = fig.add_subplot(111, aspect='equal')
             ax.plot(coords[:, 0], coords[:, 2])
             ax.plot(midline[:, 0], midline[:, 2])
-            ax.plot(coords[len(coords)/2, 0], coords[len(coords)/2, 2],'mo')
-            ax.plot(coords[0, 0], coords[0, 2],'mo')
-            ax.plot(offset_airfoil[:,0], offset_airfoil[:,1],'m')
-            ax.plot(p0[0], p0[2],'mo')
-            ax.plot(p1[0], p1[2],'ro')
-            ax.plot(p2[0], p2[2],'bo')
-            ax.plot(p3[0], p3[2],'bo')
-            ax.plot(p6[0], p6[2],'bo')
+            ax.plot(coords[len(coords) / 2, 0], coords[len(coords) / 2, 2], 'mo')
+            ax.plot(coords[0, 0], coords[0, 2], 'mo')
+            ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 1], 'm')
+            ax.plot(p0[0], p0[2], 'mo')
+            ax.plot(p1[0], p1[2], 'ro')
+            ax.plot(p2[0], p2[2], 'bo')
+            ax.plot(p3[0][0], p3[0][2], 'bo')
+            ax.plot(p4[0][0], p4[0][2], 'bo')
+            ax.plot(p5[0], p5[2], 'bo')
+            ax.plot(p6[0][0], p6[0][2], 'bo')
+            ax.plot(p7[0][0], p7[0][2], 'bo')
+            ax.plot(p8[0], p8[2], 'bo')
+            ax.plot(p23[0], p23[2], 'bo')
+            ax.plot(p28[0], p28[2], 'bo')
+            ax.plot(p31[0], p31[2], 'bo')
+            ax.plot(p36[0], p36[2], 'bo')
+
+            ax.plot(arc0[:,0], arc0[:,2], 'b')
+            ax.plot(arc1[:,0], arc1[:,2], 'b')
+            ax.plot(arc2[:,0], arc2[:,2], 'b')
+            ax.plot(arc3[:,0], arc3[:,2], 'b')
+
+
             ax.grid()
             plt.show()
-
 
     def h_topology(self, init_point):
         # init_point = 0
@@ -458,7 +505,6 @@ class OpenFoamBlockMesh(object):
         out_face = []
         periodic_face_1 = []
         periodic_face_2 = []
-
 
         # bloques
         b0 = [np.array([0, 4, 5, 1] + [x + inc for x in [0, 4, 5, 1]]) + init_point, [10, 10, 10], [1, 1, 1]]
@@ -566,49 +612,48 @@ class OpenFoamBlockMesh(object):
             p14 = radial_position * np.cos(self.__div_angle), radial_position * np.sin(self.__div_angle), p8[0]
             p15 = radial_position * np.cos(self.__div_angle), radial_position * np.sin(self.__div_angle), p9[0]
 
-            # fig = plt.figure()
-            # ax = fig.add_subplot(111, aspect='equal')
-            # ax.plot(coord[:, 0], coord[:, 1])
-            # ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 1])
-            # ax.plot(midline[:, 0], midline[:, 1])
+            fig = plt.figure()
+            ax = fig.add_subplot(111, aspect='equal')
+            ax.plot(coord[:, 0], coord[:, 1])
+            ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 1])
+            ax.plot(midline[:, 0], midline[:, 1])
+
+            # HUB
+            ax.plot([self.hub_length / 2, -self.hub_length / 2], [self.hub / 2, self.hub / 2],
+                    [-self.hub_length / 2, -self.hub_length / 2], [self.hub / 2, -self.hub / 2],
+                    [-self.hub_length / 2, self.hub_length / 2], [-self.hub / 2, -self.hub / 2],
+                    [self.hub_length / 2, self.hub_length / 2], [-self.hub / 2, self.hub / 2])
+
+            # DOMINIO
+            ax.plot([p8[0], p9[0]], [p8[1], p9[1]],
+                    [p9[0], p10[0]], [p9[1], p10[1]],
+                    [p10[0], p11[0]], [p10[1], p11[1]],
+                    [p11[0], p8[0]], [p11[1], p8[1]])
+
+            ax.plot(p0[0][0], p0[0][1], 'o')
+            ax.plot(p1[0][0], p1[0][1], 'o')
+            ax.plot(p2[0][0], p2[0][1], 'o')
+            ax.plot(p3[0][0], p3[0][1], 'o')
             #
-            # # HUB
-            # ax.plot([self.hub_length / 2, -self.hub_length / 2], [self.hub / 2, self.hub / 2],
-            #         [-self.hub_length / 2, -self.hub_length / 2], [self.hub / 2, -self.hub / 2],
-            #         [-self.hub_length / 2, self.hub_length / 2], [-self.hub / 2, -self.hub / 2],
-            #         [self.hub_length / 2, self.hub_length / 2], [-self.hub / 2, self.hub / 2])
+            ax.plot(cp0[0], cp0[1], 'ro')
+            ax.plot(cp1[0], cp1[1], 'bo')
+            ax.plot(cp2[0], cp2[1], 'mo')
+            ax.plot(arc0[cp3:, 0], arc0[cp3:, 1], 'r--')
+            ax.plot(arc1[cp4:, 0], arc1[cp4:, 1], 'r--')
+            ax.plot(arc2[cp5:, 0], arc2[cp5:, 1], 'r--')
+            ax.plot(arc3[cp6:, 0], arc3[cp6:, 1], 'r--')
             #
-            #
-            # # DOMINIO
-            # ax.plot([p8[0], p9[0]], [p8[1], p9[1]],
-            #         [p9[0], p10[0]], [p9[1], p10[1]],
-            #         [p10[0], p11[0]], [p10[1], p11[1]],
-            #         [p11[0], p8[0]], [p11[1], p8[1]])
-            #
-            # ax.plot(p0[0][0], p0[0][1], 'o')
-            # ax.plot(p1[0][0], p1[0][1], 'o')
-            # ax.plot(p2[0][0], p2[0][1], 'o')
-            # ax.plot(p3[0][0], p3[0][1], 'o')
-            # #
-            # ax.plot(cp0[0], cp0[1], 'ro')
-            # ax.plot(cp1[0], cp1[1], 'bo')
-            # ax.plot(cp2[0], cp2[1], 'mo')
-            # ax.plot(arc0[cp3:, 0], arc0[cp3:, 1], 'r--')
-            # ax.plot(arc1[cp4:, 0], arc1[cp4:, 1], 'r--')
-            # ax.plot(arc2[cp5:, 0], arc2[cp5:, 1], 'r--')
-            # ax.plot(arc3[cp6:, 0], arc3[cp6:, 1], 'r--')
-            # #
-            # ax.plot(p4[0][0], p4[0][1], 'mo')
-            # ax.plot(p5[0][0], p5[0][1], 'mo')
-            # ax.plot(p6[0][0], p6[0][1], 'mo')
-            # ax.plot(p7[0][0], p7[0][1], 'mo')
-            # ax.plot(p8[0], p8[1], 'mo')
-            # ax.plot(p9[0], p9[1], 'mo')
-            # ax.plot(p10[0], p10[1], 'mo')
-            # ax.plot(p11[0], p11[1], 'mo')
-            #
-            # ax.grid()
-            # plt.show()
+            ax.plot(p4[0][0], p4[0][1], 'mo')
+            ax.plot(p5[0][0], p5[0][1], 'mo')
+            ax.plot(p6[0][0], p6[0][1], 'mo')
+            ax.plot(p7[0][0], p7[0][1], 'mo')
+            ax.plot(p8[0], p8[1], 'mo')
+            ax.plot(p9[0], p9[1], 'mo')
+            ax.plot(p10[0], p10[1], 'mo')
+            ax.plot(p11[0], p11[1], 'mo')
+
+            ax.grid()
+            plt.show()
 
             coord = rotate3d(coord, 90, 'x')
             coord = rotate3d(coord, -90, 'y')
@@ -912,8 +957,8 @@ class OpenFoamBlockMesh(object):
             #  ),
         ]
 
-        blade = self.h_topology(len(ptos))
-        # blade = self.h_topology(0)
+        # blade = self.h_topology(len(ptos))
+        blade = self.h_topology(0)
 
         data = {
             'convertToMeters': self.convert_to_meters,
