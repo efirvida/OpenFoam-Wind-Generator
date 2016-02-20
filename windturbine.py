@@ -1,5 +1,7 @@
 import copy
 import os
+import matplotlib
+matplotlib.use("tkagg")
 import matplotlib.pyplot as plt
 
 from core_utils import midLine
@@ -152,27 +154,30 @@ class Blade(object):
         for i in self.blade['airfoils']:
             tmp = copy.deepcopy(i)
 
-            # scale the airfoil
-            tmp['airfoil'].coordinates = tmp['airfoil'].coordinates * tmp['scale']
-            tmp['airfoil'].aerodynamic_center = tmp['airfoil'].aerodynamic_center * tmp['scale']
+            # tmp['airfoil'].coordinates = tmp['airfoil'].coordinates * tmp['scale']
+            # tmp['airfoil'].aerodynamic_center = tmp['airfoil'].aerodynamic_center * tmp['scale']
 
-            # aerodynamic_center.append(tmp['airfoil'].aerodynamic_center * tmp['scale'])
-            # make transformations twist the airfoil, by its center
+            # move the airfoil by the aerodynamic center to [0;0]
+            tmp['airfoil'].coordinates = tmp['airfoil'].coordinates - tmp['airfoil'].aerodynamic_center
+            tmp['airfoil'].aerodynamic_center = (0.,0.)
+
+            #scale the airfoil
+            tmp['airfoil'].coordinates = tmp['airfoil'].coordinates * tmp['scale']
+
+            # make transformations twist and blade_twist to the airfoil, by its aerodynamic center
             if not i['airfoil'].type is 'circle':
                 if tmp['twist']:
                     tmp['airfoil'].coordinates = rotate2d(tmp['airfoil'].coordinates, tmp['twist'],
                                                           tmp['airfoil'].aerodynamic_center)
                 if self.blade['blade_twist']:
                     tmp['airfoil'].coordinates = rotate2d(tmp['airfoil'].coordinates, self.blade['blade_twist'],
-                                                          (0.5, 0.))
+                                                          (0., 0.))
 
-            # align the airfoil by aerodynamic center
-            tmp['airfoil'].coordinates[:, 0] = (tmp['airfoil'].coordinates[:, 0] - tmp['airfoil'].aerodynamic_center[
-                0]) + i['position'][0]
-            tmp['airfoil'].coordinates[:, 1] = (tmp['airfoil'].coordinates[:, 1] - tmp['airfoil'].aerodynamic_center[
-                1]) + i['position'][1]
-            tmp['airfoil'].aerodynamic_center = (i['position'][0], i['position'][1])
-            tmp['position'][2] = i['position'][2]
+            # move the airfoil to the design coordinates
+            tmp['airfoil'].coordinates = tmp['airfoil'].coordinates + i['position'][0:2]
+            tmp['airfoil'].aerodynamic_center = i['position'][0:2]
+
+
             tmp['airfoil'].coordinates = np.insert(tmp['airfoil'].coordinates, 1, i['position'][2], axis=1)
 
             airfoils.append(tmp)
@@ -187,7 +192,7 @@ class Blade(object):
             x = i['airfoil'].coordinates[:, 0]
             z = i['airfoil'].coordinates[:, 2]
             ax.plot(x, z)
-            # ax.plot(i['airfoil'].aerodynamic_center[0], i['airfoil'].aerodynamic_center[2], 'o')
+            ax.plot(i['airfoil'].aerodynamic_center[0], i['airfoil'].aerodynamic_center[1],'o')
         ax.grid()
         plt.show()
 
@@ -415,25 +420,35 @@ class OpenFoamBlockMesh(object):
     def topology_1(self, n_point=0):
         for airfoil in self.blade:
             coords = airfoil['airfoil'].coordinates
-            midline = midLine(coords)
+            midline_coords = midLine(coords)
 
-            #FIXME make 3d offset
+            #FIXME make 3d offset and split the end circe in two parts
             offset_airfoil = offset(coords[:, [0, 2]], self.airfoil_offset)
+            offset_airfoil = np.insert(offset_airfoil, 1, airfoil['position'][2], axis=1)
             if airfoil['airfoil'].type is 'circle':
                 offset_airfoil = offset_airfoil[:-100]
-            offset_airfoil = np.insert(offset_airfoil, 1, airfoil['position'][2], axis=1)
+                midline_offset = midLine(offset_airfoil)
+            else:
+                midline_offset = midLine(offset_airfoil[:-100])
 
+
+            #FIXME rename p1_2_distance a,d add it with angle to the mesh params
             p1_2_distance = 1 / 8.
-            angle = 80.
-            p0 = midline[len(midline) * (1 - p1_2_distance)]
-            p1 = midline[len(midline) / 2]
-            p2 = midline[len(midline) * p1_2_distance]
+            angle = 60.
+            p0 = midline_coords[len(midline_coords) * (1 - p1_2_distance)]
+            p1 = midline_coords[len(midline_coords) / 2]
+            p2 = midline_coords[len(midline_coords) * p1_2_distance]
+
+            #FIXME angle with line tangent to midline not to X axis
             p3 = intersection(p2[0], p2[2], angle, coords[:, [0, 2]], x1=max(offset_airfoil[:, 0]))
             p4 = intersection(p0[0], p0[2], -angle, coords[:, [0, 2]], x1=min(offset_airfoil[:, 0]))
             p5 = coords[len(coords) / 2]
             p6 = intersection(p0[0], p0[2], angle, coords[:, [0, 2]], x1=min(offset_airfoil[:, 0]))
             p7 = intersection(p2[0], p2[2], -angle, coords[:, [0, 2]], x1=max(offset_airfoil[:, 0]))
+
             p8 = coords[0]
+            p9 = midline_offset[0]
+            p12 = midline_offset[-1]
 
             p23 = (self.rotor_disk_length[1],
                    airfoil['position'][2],
@@ -462,13 +477,16 @@ class OpenFoamBlockMesh(object):
             p13 = nearest(arc2, offset_airfoil)[0]
             p14 = nearest(arc3, offset_airfoil)[0]
 
+
+            # #FIXME add points label to plot
             fig = plt.figure()
             ax = fig.add_subplot(111, aspect='equal')
             ax.plot(coords[:, 0], coords[:, 2])
-            ax.plot(midline[:, 0], midline[:, 2])
+            ax.plot(midline_coords[:, 0], midline_coords[:, 2])
             ax.plot(coords[len(coords) / 2, 0], coords[len(coords) / 2, 2], 'mo')
             ax.plot(coords[0, 0], coords[0, 2], 'mo')
-            ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 2], 'm')
+            ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 2], 'm-')
+            ax.plot(midline_offset[:, 0], midline_offset[:, 2], 'b-')
             ax.plot(p0[0], p0[2], 'mo')
             ax.plot(p1[0], p1[2], 'ro')
             ax.plot(p2[0], p2[2], 'bo')
@@ -478,10 +496,13 @@ class OpenFoamBlockMesh(object):
             ax.plot(p6[0][0], p6[0][2], 'bo')
             ax.plot(p7[0][0], p7[0][2], 'bo')
             ax.plot(p8[0], p8[2], 'bo')
+            ax.plot(p9[0], p9[2], 'bo')
             ax.plot(p10[0], p10[2], 'bo')
             ax.plot(p11[0], p11[2], 'bo')
+            ax.plot(p12[0], p12[2], 'bo')
             ax.plot(p13[0], p13[2], 'bo')
             ax.plot(p14[0], p14[2], 'bo')
+
             ax.plot(p23[0], p23[2], 'bo')
             ax.plot(p28[0], p28[2], 'bo')
             ax.plot(p31[0], p31[2], 'bo')
