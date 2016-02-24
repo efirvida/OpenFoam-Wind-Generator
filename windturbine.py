@@ -478,12 +478,12 @@ class OpenFoamBlockMesh(object):
                 offset_airfoil = offset_airfoil[50:-50]
 
             # FIXME rename p1_2_distance a,d add it with angle to the mesh params
-            p1_2_distance = 1 / 4.
+            parts = 10.
             angle = 60.
-            p0 = midline_coords[len(midline_coords) * (1 - p1_2_distance)]
-            p01 = np.mean(midline_coords,axis=0)
-            p1 = midline_coords[len(midline_coords) / 2]
-            p2 = midline_coords[len(midline_coords) * p1_2_distance]
+            p = np.insert(split_curve(midline_coords,parts),2, airfoil['position'][2], axis=1)
+            p0 = p[0]
+            p1 = p[(len(p)-1)/2]
+            p2 = p[-1]
 
             normal_to_1 = [p1, p2]
             normal_to_2 = [p0, p1]
@@ -524,19 +524,18 @@ class OpenFoamBlockMesh(object):
                 [12, p12[0]],
                 [13, p13[0]],
                 [14, p14[0]],
-                [14, p01],
             ]
 
             vertices.append(points)
 
             blocks.append(
                 [
-                    [form_blocks(b0, inc * iter), [7, 10, 2], [1, 1, 1]],
-                    [form_blocks(b1, inc * iter), [10, 10, 2], [1, 1, 1]],
-                    [form_blocks(b2, inc * iter), [10, 10, 2], [1, 1, 1]],
-                    [form_blocks(b3, inc * iter), [7, 10, 2], [1, 1, 1]],
-                    [form_blocks(b4, inc * iter), [10, 10, 2], [1, 1, 1]],
-                    [form_blocks(b5, inc * iter), [10, 10, 2], [1, 1, 1]],
+                    [form_blocks(b0, inc * iter), [20, 15, 2], [1, 1, 1]],
+                    [form_blocks(b1, inc * iter), [15, 15, 2], [1, 1, 1]],
+                    [form_blocks(b2, inc * iter), [15, 15, 2], [1, 1, 1]],
+                    [form_blocks(b3, inc * iter), [20, 15, 2], [1, 1, 1]],
+                    [form_blocks(b4, inc * iter), [15, 15, 2], [1, 1, 1]],
+                    [form_blocks(b5, inc * iter), [15, 15, 2], [1, 1, 1]],
                 ]
             )
 
@@ -579,39 +578,39 @@ class OpenFoamBlockMesh(object):
 
             ])
 
-            # # FIXME add points label to plot
-            fig = plt.figure()
-            ax = fig.add_subplot(111, aspect='equal')
-            ax.plot(coords[:, 0], coords[:, 1],'-')
-            ax.plot(midline_coords[:, 0], midline_coords[:, 1],'x')
-            # # ax.plot(coords[len(coords) / 2, 0], coords[len(coords) / 2, 1], 'mo')
-            # # ax.plot(coords[0, 0], coords[0, 1], 'mo')
-            # ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 1], 'k')
-            # # ax.plot(offset_airfoil[0, 0], offset_airfoil[0, 1], 'bo')
-            # # ax.plot(offset_airfoil[-1, 0], offset_airfoil[-1, 1], 'bo')
-            # # ax.plot(midline_offset[:, 0], midline_offset[:, 1], 'b-')
-            # # ax.plot(spline0[:, 0], spline0[:, 1], 'x')
-            # # ax.plot(spline1[:, 0], spline1[:, 1], 'x')
-            # # ax.plot(spline2[:, 0], spline2[:, 1], 'x')
-            # # ax.plot(spline3[:, 0], spline3[:, 1], 'x')
-            # # ax.plot(spline4[:, 0], spline4[:, 1], 'x')
-            # # ax.plot(spline5[:, 0], spline5[:, 1], 'x')
-            # # ax.plot(spline6[:, 0], spline6[:, 1], '-')
-            # # ax.plot(spline7[:, 0], spline7[:, 1], '-')
-            # # ax.plot(spline8[:, 0], spline8[:, 1], '-')
-            # # ax.plot(spline9[:, 0], spline9[:, 1], '-')
-            # # ax.plot(spline10[:, 0], spline10[:, 1], '-')
-            # # ax.plot(spline11[:, 0], spline11[:, 1], '-')
-            # # ax.plot(tmp_3[0], tmp_3[1], 'ro')
-            # # ax.plot(tmp_4[0], tmp_4[1], 'ro')
-            # # ax.plot(tmp_6[0], tmp_6[1], 'ro')
-            # # ax.plot(tmp_7[0], tmp_7[1], 'ro')
+            # # # FIXME add points label to plot
+            # fig = plt.figure()
+            # ax = fig.add_subplot(111, aspect='equal')
+            # ax.plot(coords[:, 0], coords[:, 1],'-')
+            # ax.plot(midline_coords[:, 0], midline_coords[:, 1],'x')
+            # # # ax.plot(coords[len(coords) / 2, 0], coords[len(coords) / 2, 1], 'mo')
+            # # # ax.plot(coords[0, 0], coords[0, 1], 'mo')
+            # # ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 1], 'k')
+            # # # ax.plot(offset_airfoil[0, 0], offset_airfoil[0, 1], 'bo')
+            # # # ax.plot(offset_airfoil[-1, 0], offset_airfoil[-1, 1], 'bo')
+            # # # ax.plot(midline_offset[:, 0], midline_offset[:, 1], 'b-')
+            # # # ax.plot(spline0[:, 0], spline0[:, 1], 'x')
+            # # # ax.plot(spline1[:, 0], spline1[:, 1], 'x')
+            # # # ax.plot(spline2[:, 0], spline2[:, 1], 'x')
+            # # # ax.plot(spline3[:, 0], spline3[:, 1], 'x')
+            # # # ax.plot(spline4[:, 0], spline4[:, 1], 'x')
+            # # # ax.plot(spline5[:, 0], spline5[:, 1], 'x')
+            # # # ax.plot(spline6[:, 0], spline6[:, 1], '-')
+            # # # ax.plot(spline7[:, 0], spline7[:, 1], '-')
+            # # # ax.plot(spline8[:, 0], spline8[:, 1], '-')
+            # # # ax.plot(spline9[:, 0], spline9[:, 1], '-')
+            # # # ax.plot(spline10[:, 0], spline10[:, 1], '-')
+            # # # ax.plot(spline11[:, 0], spline11[:, 1], '-')
+            # # # ax.plot(tmp_3[0], tmp_3[1], 'ro')
+            # # # ax.plot(tmp_4[0], tmp_4[1], 'ro')
+            # # # ax.plot(tmp_6[0], tmp_6[1], 'ro')
+            # # # ax.plot(tmp_7[0], tmp_7[1], 'ro')
+            # #
+            # for p in points:
+            #     ax.plot(p[1][0], p[1][1], 'bo')
             #
-            for p in points:
-                ax.plot(p[1][0], p[1][1], 'bo')
-
-            ax.grid()
-            plt.show()
+            # ax.grid()
+            # plt.show()
 
         # TODO splines radial direction
         # splines radial directions

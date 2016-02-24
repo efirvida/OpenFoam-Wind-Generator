@@ -1,4 +1,3 @@
-import timeit
 from math import cos, sin, atan, sqrt, radians
 
 try:
@@ -11,7 +10,8 @@ except:
 import numpy as np
 from jinja2 import Environment, FileSystemLoader
 from scipy import spatial
-import scipy.interpolate as si
+from scipy.interpolate import interp1d, splev
+
 
 
 def renderTemplate(template, output, data):
@@ -431,7 +431,7 @@ def bspline(cv, n=100, degree=3, periodic=False):
     arange = np.arange(len(u))
     points = np.zeros((len(u), cv.shape[1]))
     for i in xrange(cv.shape[1]):
-        points[arange, i] = si.splev(u, (kv, cv[:, i], degree))
+        points[arange, i] = splev(u, (kv, cv[:, i], degree))
 
     return points
 
@@ -441,7 +441,15 @@ def increase_resolution(coords, res = 200):
 
     A = coords
     new_dims = []
-    for original_length, new_length in zip(A.shape, (res,2)):
+    for original_length, new_length in zip(A.shape, (res, A.shape[1])):
         new_dims.append(np.linspace(0, original_length-1, new_length))
 
     return map_coordinates(A, np.meshgrid(*new_dims, indexing='ij'))
+
+def split_curve(arr, npts):
+    x = arr[:,0]
+    y = arr[:,1]
+    f = interp1d(x, y)
+    xnew = np.linspace(x.min(), x.max(), num=npts, endpoint=False)
+    ynew = f(xnew)
+    return zip(xnew[1:],ynew[1:])
