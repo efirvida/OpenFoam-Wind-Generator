@@ -1,0 +1,57 @@
+{% extends 'header.jinja' %}
+
+{% block object %}blockMeshDict{% endblock %}
+
+{% block content %}
+    convertToMeters {{ data.convertToMeters }};
+
+    vertices
+    (
+    {%- for i in data.vertices %}
+        {{ i[1]|f1 }} // Punto {{ i[0] }}
+    {%- endfor %}
+    );
+
+    blocks
+    (
+    {%- for i in data.blocks %}
+        hex {{ i[0]|f1 }} {{ i[1]|f1 }} simpleGrading {{ i[2]|f1 }}         // Bloque {{ loop.index0 }}
+    {%- endfor %}
+    );
+
+    edges
+    (
+    {%- for i in data.arcs %}
+        arc {{ i[0]|f1|f2 }} {{ i[1]|f1 }}
+    {%- endfor %}
+    {% for i in data.splines %}
+        {%- if i[1]|f3 %}
+        spline {{ i[0] |f1|f2 }} ({{ i[1] |f1|replace('\n','') }})
+        {%- endif %}
+    {%- endfor %}
+    );
+
+
+    boundary
+    (
+    {%- for face in data.faces %}
+        {{ face[0] }}
+        {
+        type {{ face[1] }};
+        faces
+        (
+        {%- for i in face[2] %}
+            {{ i |f1 }}
+        {%- endfor %}
+        );
+        }
+    {% endfor %}
+    );
+
+
+    mergePatchPairs
+    (
+    );
+
+    // ************************************************************************* //
+{% endblock %}
