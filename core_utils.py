@@ -1,5 +1,5 @@
 import timeit
-from math import cos, sin, atan, sqrt
+from math import cos, sin, atan, sqrt, radians
 
 try:
     from OCC.BRepBuilderAPI import (BRepBuilderAPI_MakeEdge,
@@ -11,6 +11,7 @@ except:
 import numpy as np
 from jinja2 import Environment, FileSystemLoader
 from scipy import spatial
+import scipy.interpolate as si
 
 
 def renderTemplate(template, output, data):
@@ -88,9 +89,9 @@ def rotate2d(coordinates, angle, center=(0, 0,)):
     """
     rotated = np.array([
         np.cos(np.radians(angle)) * (coordinates[:, 0] - center[0]) - np.sin(np.radians(angle)) * (
-        coordinates[:, 1] - center[1]) + center[0],
+            coordinates[:, 1] - center[1]) + center[0],
         np.sin(np.radians(angle)) * (coordinates[:, 0] - center[0]) + np.cos(np.radians(angle)) * (
-        coordinates[:, 1] - center[1]) + center[1]])
+            coordinates[:, 1] - center[1]) + center[1]])
 
     return rotated.T
 
@@ -135,7 +136,7 @@ def offset(coordinates, distance):
     def round_data(data):
         # Add infinitesimal rounding of the envelope
         data = data.tolist()
-        assert data[-1] == data[0]
+        # assert data[-1] == data[0]
         x0, y0 = data[0]
         x1, y1 = data[1]
         xe, ye = data[-2]
@@ -161,7 +162,7 @@ def offset(coordinates, distance):
         data = data if not rows else np.delete(data, rows, axis=0)
         return data[~np.isnan(data).any(axis=1)]
 
-    creo_point = coordinates[0]
+    zero_point = coordinates[0]
     coordinates = round_data(coordinates)
     coordinates = iter(coordinates)
     x1, y1 = coordinates.next()
@@ -197,10 +198,8 @@ def offset(coordinates, distance):
         x1, y1 = x2, y2
 
     data = clean(np.array(points))
-    # return points
-
-    return np.append(data, arc2points_np(creo_point, points[-1], points[0]), axis=0)
-
+    arc = arc2points_np(zero_point, data[0], data[-1])
+    return np.concatenate([arc[:50][::-1],data,arc[50:][::-1]])
 
 def mid_point(pair1, pair2):
     x = (pair1[0][0] + pair1[1][0]) / 2
@@ -240,11 +239,41 @@ def nearest(arr0, arr1):
     return (arr1[ptos[0][1]].tolist(), ptos[0][1], ptos[0][2])
 
 
-def intersection(x0, y0, slope, airfoil, x1=5):
-    y1 = (x1 - x0) * np.tan(np.deg2rad(slope))
+def end_point_line(point_0, angle, length, normal_line_points):
+    """
+    Return the end point of a line with of `length` begining on `point_0` with and `angle` normal to line
+    formed by normal_line_points, over a XZ plane passing trough `point_0`
+    """
+
+    x0, y0, z0 = normal_line_points[0]
+    x1, y1, z1 = normal_line_points[1]
+    normal_line_slope = (y1 - y0) / (x1 - x0)
+
+    x = length * cos(radians(angle) + atan(normal_line_slope)) + point_0[0]
+    y = length * sin(radians(angle) + atan(normal_line_slope)) + point_0[1]
+    z = z0
+
+    return (x, y, z)
+
+
+def intersection(begin_point, end_point, coords):
+    """
+    Find intersection point of line between the `begin_point` and the end `end_point`
+    with the airfoil, over a XZ plane passing trough `begin_point`
+
+    :param begin_point:
+    :param end_point:
+    :param coords:
+    :return:
+    """
+    x0, y0, z0 = begin_point
+    x1, y1, z1 = end_point
+
     x = np.linspace(x0, x1, 100)
     y = np.linspace(y0, y1, 100)
-    return nearest(zip(x, y), airfoil)
+    z = np.linspace(z0, z1, 100)
+    # return np.array(zip(x, y))
+    return nearest(zip(x, y, z), coords)
 
 
 def arc2points(center, pt1, pt2, resolution=100):
@@ -304,7 +333,6 @@ def arc2points_np(center, pt1, pt2, resolution=100):
 
 
 def arc3points(pt1, pt2, pt3):
-
     """
     Genera las coordenadas de un arco que pasa por los puntos `pt1, pt2 y pt3`
     sobre un plano XZ que pasa por el punto pt1
@@ -320,6 +348,7 @@ def arc3points(pt1, pt2, pt3):
     Ya = pt1[2]
     Yb = pt2[2]
     Yc = pt3[2]
+
     a = [
         [2 * (Xa - Xb), 2 * (Ya - Yb)],
         [2 * (Xa - Xc), 2 * (Ya - Yc)],
@@ -330,8 +359,8 @@ def arc3points(pt1, pt2, pt3):
     ]
     X, Y = np.linalg.lstsq(a, b)[0]
 
-    points = arc2points_np((X, Y), (Xa,Ya), (Xc,Yc))
-    return np.insert(points,1,pt1[1],axis=1)
+    points = arc2points_np((X, Y), (Xa, Ya), (Xc, Yc))
+    return np.insert(points, 1, pt1[1], axis=1)
 
 
 def blend(coords, r, plane='xy'):
@@ -362,3 +391,57 @@ def midLine(coords):
         downProfile = coords[x0 - (len(upProfile) - len(downProfile)):][::-1]
 
     return (upProfile + downProfile) / 2.
+
+
+def bspline(cv, n=100, degree=3, periodic=False):
+    """ Calculate n samples on a bspline
+
+        cv :      Array ov control vertices
+        n  :      Number of samples to return
+        degree:   Curve degree
+        periodic: True - Curve is closed
+                  False - Curve is open
+    """
+
+    # If periodic, extend the point array by count+degree+1
+    cv = np.asarray(cv)
+    count = len(cv)
+
+    if periodic:
+        factor, fraction = divmod(count + degree + 1, count)
+        cv = np.concatenate((cv,) * factor + (cv[:fraction],))
+        count = len(cv)
+        degree = np.clip(degree, 1, degree)
+
+    # If opened, prevent degree from exceeding count-1
+    else:
+        degree = np.clip(degree, 1, count - 1)
+
+    # Calculate knot vector
+    kv = None
+    if periodic:
+        kv = np.arange(0 - degree, count + degree + degree - 1, dtype='int')
+    else:
+        kv = np.array([0] * degree + range(count - degree + 1) + [count - degree] * degree, dtype='int')
+
+    # Calculate query range
+    u = np.linspace(periodic, (count - degree), n)
+
+    # Calculate result
+    arange = np.arange(len(u))
+    points = np.zeros((len(u), cv.shape[1]))
+    for i in xrange(cv.shape[1]):
+        points[arange, i] = si.splev(u, (kv, cv[:, i], degree))
+
+    return points
+
+
+def increase_resolution(coords, res = 200):
+    from scipy.ndimage.interpolation import map_coordinates
+
+    A = coords
+    new_dims = []
+    for original_length, new_length in zip(A.shape, (res,2)):
+        new_dims.append(np.linspace(0, original_length-1, new_length))
+
+    return map_coordinates(A, np.meshgrid(*new_dims, indexing='ij'))

@@ -1,6 +1,9 @@
 import copy
 import os
+from math import ceil, floor
+
 import matplotlib
+
 matplotlib.use("tkagg")
 import matplotlib.pyplot as plt
 
@@ -42,7 +45,7 @@ class Airfoils(object):
         denomination = kwargs['denomination'] if 'denomination' in kwargs else None
         radius = kwargs['radius'] if 'radius' in kwargs else 0.5
         radius = float(radius)
-        n_points = 500  # number of on the profiles
+        n_points = 250  # number of on the profiles
 
         self.coordinates = np.array([])
 
@@ -57,7 +60,7 @@ class Airfoils(object):
             self.aerodynamic_center = self.chordLine()[len(self.chordLine()) / 4]
         else:
             self.type = 'from_file'
-            self.coordinates = self.__from_file(name)
+            self.coordinates = increase_resolution(self.__from_file(name), res=250)
             self.aerodynamic_center = self.chordLine()[len(self.chordLine()) / 4]
 
         if not self.coordinates.any():
@@ -67,9 +70,6 @@ class Airfoils(object):
 
     def extremePoint(self):
         return getExtemePoints(self.coordinates)
-
-    def midPoint(self):
-        return self.midLine()[len(self.midLine()) / 2]
 
     def chordLine(self, points=50):
         x = np.linspace(self.coordinates[getExtemePoints(self.coordinates)[2]][0], self.coordinates[0][0], points)
@@ -85,8 +85,7 @@ class Airfoils(object):
         """
         fig = plt.figure()
         ax = fig.add_subplot(111, aspect='equal')
-        ax.plot(self.coordinates[:, 0], self.coordinates[:, 1], '-r')
-        ax.plot(self.midLine()[:, 0], self.midLine()[:, 1], '-b')
+        ax.plot(self.coordinates[:, 0], self.coordinates[:, 1], 'ok')
         ax.plot(self.chordLine()[:, 0], self.chordLine()[:, 1], '-y')
         ax.plot(self.aerodynamic_center[0], self.aerodynamic_center[1], 'o')
 
@@ -159,9 +158,9 @@ class Blade(object):
 
             # move the airfoil by the aerodynamic center to [0;0]
             tmp['airfoil'].coordinates = tmp['airfoil'].coordinates - tmp['airfoil'].aerodynamic_center
-            tmp['airfoil'].aerodynamic_center = (0.,0.)
+            tmp['airfoil'].aerodynamic_center = (0., 0.)
 
-            #scale the airfoil
+            # scale the airfoil
             tmp['airfoil'].coordinates = tmp['airfoil'].coordinates * tmp['scale']
 
             # make transformations twist and blade_twist to the airfoil, by its aerodynamic center
@@ -175,14 +174,13 @@ class Blade(object):
 
             # move the airfoil to the design coordinates
             tmp['airfoil'].coordinates = tmp['airfoil'].coordinates + i['position'][0:2]
-            tmp['airfoil'].aerodynamic_center = i['position'][0:2]
+            tmp['airfoil'].aerodynamic_center = i['position']
 
-
-            tmp['airfoil'].coordinates = np.insert(tmp['airfoil'].coordinates, 1, i['position'][2], axis=1)
+            tmp['airfoil'].coordinates = np.insert(tmp['airfoil'].coordinates, 2, i['position'][2], axis=1)
 
             airfoils.append(tmp)
         self.blade = airfoils
-        self.blade_coords = [i['airfoil'].coordinates for i in airfoils]
+        # self.blade_coords = [i['airfoil'].coordinates for i in airfoils]
 
     def plot(self):
         fig = plt.figure()
@@ -190,9 +188,9 @@ class Blade(object):
 
         for i in self.blade:
             x = i['airfoil'].coordinates[:, 0]
-            z = i['airfoil'].coordinates[:, 2]
-            ax.plot(x, z)
-            ax.plot(i['airfoil'].aerodynamic_center[0], i['airfoil'].aerodynamic_center[1],'o')
+            y = i['airfoil'].coordinates[:, 1]
+            ax.plot(x, y)
+            ax.plot(i['airfoil'].aerodynamic_center[0], i['airfoil'].aerodynamic_center[1], 'o')
         ax.grid()
         plt.show()
 
@@ -417,105 +415,236 @@ class OpenFoamBlockMesh(object):
 
         self.__div_angle = np.deg2rad(360 / self.n_blades - 90)
 
-    def topology_1(self, n_point=0):
-        for airfoil in self.blade:
+    def topology_O(self, n_point=0):
+        vertices = []
+        blocks = []
+        splines = []
+        faces = []
+        inc = 15  # <- Numero de vertices de la topologia
+        cells_z = 300  # <- Divisiones de la pala en sentido del eje Z (aproximadamente)
+
+        L = self.blade[-1]['position'][2]
+        block_divisions = []
+        for i in xrange(len(self.blade) - 1):
+            block_lenght = self.blade[i + 1]['position'][2] - self.blade[i]['position'][2]
+            block_divisions.append(ceil(block_lenght / L * cells_z))
+
+        def form_blocks(base_block, inc):
+            top_block = [i + inc for i in base_block]
+            if len(base_block) > 4:
+                return [i + inc for i in base_block]
+            else:
+                return base_block + top_block
+
+        b0 = form_blocks([14, 9, 3, 8], inc)
+        b1 = form_blocks([4, 3, 9, 10], inc)
+        b2 = form_blocks([5, 4, 10, 11], inc)
+        b3 = form_blocks([6, 5, 11, 12], inc)
+        b4 = form_blocks([12, 13, 7, 6], inc)
+        b5 = form_blocks([13, 14, 8, 7], inc)
+
+        def form_face(face, inc):
+            face.extend([face[1] + inc, face[0] + inc])
+            return face
+
+        f0 = form_face([4, 3, ], inc)
+        f1 = form_face([5, 4, ], inc)
+        f2 = form_face([5, 6, ], inc)
+        f3 = form_face([7, 6, ], inc)
+        f4 = form_face([8, 7, ], inc)
+        f5 = form_face([3, 8, ], inc)
+
+        spl0 = [3, 4]
+        spl1 = [4, 5]
+        spl2 = [5, 6]
+        spl3 = [6, 7]
+        spl4 = [7, 8]
+        spl5 = [8, 3]
+        spl6 = [9, 10]
+        spl7 = [10, 11]
+        spl8 = [11, 12]
+        spl9 = [12, 13]
+        spl10 = [13, 14]
+        spl11 = [14, 9]
+
+        for iter, airfoil in enumerate(self.blade):
             coords = airfoil['airfoil'].coordinates
             midline_coords = midLine(coords)
 
-            #FIXME make 3d offset and split the end circe in two parts
-            offset_airfoil = offset(coords[:, [0, 2]], self.airfoil_offset)
-            offset_airfoil = np.insert(offset_airfoil, 1, airfoil['position'][2], axis=1)
+            # FIXME make 3d offset and split the end circe in two parts
+            offset_airfoil = offset(coords[:, [0, 1]], self.airfoil_offset)
+            offset_airfoil = np.insert(offset_airfoil, 2, airfoil['position'][2], axis=1)
             if airfoil['airfoil'].type is 'circle':
-                offset_airfoil = offset_airfoil[:-100]
-                midline_offset = midLine(offset_airfoil)
-            else:
-                midline_offset = midLine(offset_airfoil[:-100])
+                offset_airfoil = offset_airfoil[50:-50]
 
-
-            #FIXME rename p1_2_distance a,d add it with angle to the mesh params
-            p1_2_distance = 1 / 8.
+            # FIXME rename p1_2_distance a,d add it with angle to the mesh params
+            p1_2_distance = 1 / 4.
             angle = 60.
             p0 = midline_coords[len(midline_coords) * (1 - p1_2_distance)]
+            p01 = np.mean(midline_coords,axis=0)
             p1 = midline_coords[len(midline_coords) / 2]
             p2 = midline_coords[len(midline_coords) * p1_2_distance]
 
-            #FIXME angle with line tangent to midline not to X axis
-            p3 = intersection(p2[0], p2[2], angle, coords[:, [0, 2]], x1=max(offset_airfoil[:, 0]))
-            p4 = intersection(p0[0], p0[2], -angle, coords[:, [0, 2]], x1=min(offset_airfoil[:, 0]))
-            p5 = coords[len(coords) / 2]
-            p6 = intersection(p0[0], p0[2], angle, coords[:, [0, 2]], x1=min(offset_airfoil[:, 0]))
-            p7 = intersection(p2[0], p2[2], -angle, coords[:, [0, 2]], x1=max(offset_airfoil[:, 0]))
+            normal_to_1 = [p1, p2]
+            normal_to_2 = [p0, p1]
+            tmp_3 = end_point_line(p2, angle, np.max(coords[:, [0, 1]]), normal_to_1)
+            tmp_5 = end_point_line(p0, 180 - angle, np.max(coords[:, [0, 1]]), normal_to_2)
+            tmp_6 = end_point_line(p0, 180 + angle, np.max(coords[:, [0, 1]]), normal_to_2)
+            tmp_8 = end_point_line(p2, -angle, np.max(coords[:, [0, 1]]), normal_to_1)
 
-            p8 = coords[0]
-            p9 = midline_offset[0]
-            p12 = midline_offset[-1]
+            p3 = intersection(p2, tmp_3, coords)
+            p5 = intersection(p0, tmp_5, coords)
+            p4 = [coords[(p5[1] - p3[1]) / 2 + p3[1]].tolist(), (p5[1] - p3[1]) / 2 + p3[1]]
 
-            p23 = (self.rotor_disk_length[1],
-                   airfoil['position'][2],
-                   self.hub)
-            p28 = (-self.rotor_disk_length[0],
-                   airfoil['position'][2],
-                   self.hub)
-            p31 = (-self.rotor_disk_length[0],
-                   airfoil['position'][2],
-                   -self.hub)
-            p36 = (self.rotor_disk_length[1],
-                   airfoil['position'][2],
-                   -self.hub)
+            p6 = intersection(p0, tmp_6, coords)
+            p8 = intersection(p2, tmp_8, coords)
+            p7 = [coords[(p8[1] - p6[1]) / 2 + p6[1]].tolist(), (p8[1] - p6[1]) / 2 + p6[1]]
 
-            map(lambda x: x[0].insert(1, airfoil['position'][2]), [p3, p4, p6, p7])
+            p9 = intersection(p2, tmp_3, offset_airfoil)
+            p11 = intersection(p0, tmp_5, offset_airfoil)
+            p10 = [offset_airfoil[(p11[1] - p9[1]) / 2 + p9[1]].tolist(), (p11[1] - p9[1]) / 2 + p9[1]]
 
-            arc0 = np.array(arc3points(p0, p4[0], p28))
-            arc1 = np.array(arc3points(p0, p6[0], p31))
-            arc2 = np.array(arc3points(p2, p3[0], p23))
-            arc3 = np.array(arc3points(p2, p7[0], p36))
+            p12 = intersection(p0, tmp_6, offset_airfoil)
+            p14 = intersection(p2, tmp_8, offset_airfoil)
+            p13 = [offset_airfoil[(p14[1] - p12[1]) / 2 + p12[1]].tolist(), (p14[1] - p12[1]) / 2 + p12[1]]
 
-            map(lambda x: x[~np.isnan(x).any(axis=1)], [arc0, arc1, arc2, arc3])
+            points = [
+                [0, p0.tolist()],
+                [1, p1.tolist()],
+                [2, p2.tolist()],
+                [3, p3[0]],
+                [4, p4[0]],
+                [5, p5[0]],
+                [6, p6[0]],
+                [7, p7[0]],
+                [8, p8[0]],
+                [9, p9[0]],
+                [10, p10[0]],
+                [11, p11[0]],
+                [12, p12[0]],
+                [13, p13[0]],
+                [14, p14[0]],
+                [14, p01],
+            ]
 
-            p10 = nearest(arc0, offset_airfoil)[0]
-            p11 = nearest(arc1, offset_airfoil)[0]
-            p13 = nearest(arc2, offset_airfoil)[0]
-            p14 = nearest(arc3, offset_airfoil)[0]
+            vertices.append(points)
 
+            blocks.append(
+                [
+                    [form_blocks(b0, inc * iter), [7, 10, 2], [1, 1, 1]],
+                    [form_blocks(b1, inc * iter), [10, 10, 2], [1, 1, 1]],
+                    [form_blocks(b2, inc * iter), [10, 10, 2], [1, 1, 1]],
+                    [form_blocks(b3, inc * iter), [7, 10, 2], [1, 1, 1]],
+                    [form_blocks(b4, inc * iter), [10, 10, 2], [1, 1, 1]],
+                    [form_blocks(b5, inc * iter), [10, 10, 2], [1, 1, 1]],
+                ]
+            )
 
-            # #FIXME add points label to plot
+            spline0 = coords[p3[1]: p4[1] + 1]
+            spline1 = coords[p4[1]: p5[1] + 1]
+            spline2 = coords[p5[1]: p6[1] + 1]
+            spline3 = coords[p6[1]: p7[1] + 1]
+            spline4 = coords[p7[1]: p8[1] + 1]
+            spline5 = np.concatenate((coords[p8[1]:-1], coords[0:p3[1]]))
+            spline6 = offset_airfoil[p9[1]: p10[1] + 1]
+            spline7 = offset_airfoil[p10[1]: p11[1] + 1]
+            spline8 = offset_airfoil[p11[1]:p12[1] + 1]
+            spline9 = offset_airfoil[p12[1]: p13[1] + 1]
+            spline10 = offset_airfoil[p13[1]: p14[1] + 1]
+            spline11 = np.concatenate((offset_airfoil[p14[1]:-1], offset_airfoil[0:p9[1]]))
+
+            splines.append([
+                [[i + inc * iter for i in spl0], spline0],
+                [[i + inc * iter for i in spl1], spline1],
+                [[i + inc * iter for i in spl2], spline2],
+                [[i + inc * iter for i in spl3], spline3],
+                [[i + inc * iter for i in spl4], spline4],
+                [[i + inc * iter for i in spl5], spline5],
+                [[i + inc * iter for i in spl6], spline6],
+                [[i + inc * iter for i in spl7], spline7],
+                [[i + inc * iter for i in spl8], spline8],
+                [[i + inc * iter for i in spl9], spline9],
+                [[i + inc * iter for i in spl10], spline10],
+                [[i + inc * iter for i in spl11], spline11],
+            ]
+            )
+
+            faces.append([
+                [i + inc * iter for i in f0],
+                [i + inc * iter for i in f1],
+                [i + inc * iter for i in f2],
+                [i + inc * iter for i in f3],
+                [i + inc * iter for i in f4],
+                [i + inc * iter for i in f5],
+
+            ])
+
+            # # FIXME add points label to plot
             fig = plt.figure()
             ax = fig.add_subplot(111, aspect='equal')
-            ax.plot(coords[:, 0], coords[:, 2])
-            ax.plot(midline_coords[:, 0], midline_coords[:, 2])
-            ax.plot(coords[len(coords) / 2, 0], coords[len(coords) / 2, 2], 'mo')
-            ax.plot(coords[0, 0], coords[0, 2], 'mo')
-            ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 2], 'm-')
-            ax.plot(midline_offset[:, 0], midline_offset[:, 2], 'b-')
-            ax.plot(p0[0], p0[2], 'mo')
-            ax.plot(p1[0], p1[2], 'ro')
-            ax.plot(p2[0], p2[2], 'bo')
-            ax.plot(p3[0][0], p3[0][2], 'bo')
-            ax.plot(p4[0][0], p4[0][2], 'bo')
-            ax.plot(p5[0], p5[2], 'bo')
-            ax.plot(p6[0][0], p6[0][2], 'bo')
-            ax.plot(p7[0][0], p7[0][2], 'bo')
-            ax.plot(p8[0], p8[2], 'bo')
-            ax.plot(p9[0], p9[2], 'bo')
-            ax.plot(p10[0], p10[2], 'bo')
-            ax.plot(p11[0], p11[2], 'bo')
-            ax.plot(p12[0], p12[2], 'bo')
-            ax.plot(p13[0], p13[2], 'bo')
-            ax.plot(p14[0], p14[2], 'bo')
-
-            ax.plot(p23[0], p23[2], 'bo')
-            ax.plot(p28[0], p28[2], 'bo')
-            ax.plot(p31[0], p31[2], 'bo')
-            ax.plot(p36[0], p36[2], 'bo')
+            ax.plot(coords[:, 0], coords[:, 1],'-')
+            ax.plot(midline_coords[:, 0], midline_coords[:, 1],'x')
+            # # ax.plot(coords[len(coords) / 2, 0], coords[len(coords) / 2, 1], 'mo')
+            # # ax.plot(coords[0, 0], coords[0, 1], 'mo')
+            # ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 1], 'k')
+            # # ax.plot(offset_airfoil[0, 0], offset_airfoil[0, 1], 'bo')
+            # # ax.plot(offset_airfoil[-1, 0], offset_airfoil[-1, 1], 'bo')
+            # # ax.plot(midline_offset[:, 0], midline_offset[:, 1], 'b-')
+            # # ax.plot(spline0[:, 0], spline0[:, 1], 'x')
+            # # ax.plot(spline1[:, 0], spline1[:, 1], 'x')
+            # # ax.plot(spline2[:, 0], spline2[:, 1], 'x')
+            # # ax.plot(spline3[:, 0], spline3[:, 1], 'x')
+            # # ax.plot(spline4[:, 0], spline4[:, 1], 'x')
+            # # ax.plot(spline5[:, 0], spline5[:, 1], 'x')
+            # # ax.plot(spline6[:, 0], spline6[:, 1], '-')
+            # # ax.plot(spline7[:, 0], spline7[:, 1], '-')
+            # # ax.plot(spline8[:, 0], spline8[:, 1], '-')
+            # # ax.plot(spline9[:, 0], spline9[:, 1], '-')
+            # # ax.plot(spline10[:, 0], spline10[:, 1], '-')
+            # # ax.plot(spline11[:, 0], spline11[:, 1], '-')
+            # # ax.plot(tmp_3[0], tmp_3[1], 'ro')
+            # # ax.plot(tmp_4[0], tmp_4[1], 'ro')
+            # # ax.plot(tmp_6[0], tmp_6[1], 'ro')
+            # # ax.plot(tmp_7[0], tmp_7[1], 'ro')
             #
-            ax.plot(arc0[:,0], arc0[:,2], 'b')
-            ax.plot(arc1[:,0], arc1[:,2], 'b')
-            ax.plot(arc2[:,0], arc2[:,2], 'b')
-            ax.plot(arc3[:,0], arc3[:,2], 'b')
-
+            for p in points:
+                ax.plot(p[1][0], p[1][1], 'bo')
 
             ax.grid()
             plt.show()
+
+        # TODO splines radial direction
+        # splines radial directions
+        # trasposed_vertices = map(list,zip(*vertices))[0]
+        # bspline([i[1] for i in trasposed_vertices])
+
+        # extend and reorder elements
+        vertices = ((id, val[1]) for id, val in enumerate((j for i in vertices for j in i)))
+
+        # FIXME preformances issues
+        final_blocks = []
+        for idx, block in enumerate(blocks[:-1]):
+            for blk in block:
+                b = blk[0]
+                cells = [blk[1][0], blk[1][1], int(block_divisions[idx])]
+                grading = blk[2]
+                final_blocks.append([b, cells, grading, ])
+
+        # blocks = [j for i in blocks[:-1] for j in i]
+        faces = (j for i in faces[:-1] for j in i)
+        face = [['Blade', 'wall', faces], ]
+
+        # topology splines
+        splines = (j for i in splines for j in i)
+
+        data = {
+            'vertices': vertices,
+            'blocks': final_blocks,
+            'splines': splines,
+            'faces': face,
+        }
+
+        renderTemplate('blockMeshDict_O.jinja', self.study.dirs['polyMesh'] + 'blockMeshDict', data)
 
     def h_topology(self, init_point):
         # init_point = 0
