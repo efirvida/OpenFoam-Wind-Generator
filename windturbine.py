@@ -421,7 +421,7 @@ class OpenFoamBlockMesh(object):
         splines = []
         faces = []
         inc = 15  # <- Numero de vertices de la topologia
-        cells_z = 300  # <- Divisiones de la pala en sentido del eje Z (aproximadamente)
+        cells_z = 250  # <- Divisiones de la pala en sentido del eje Z (aproximadamente)
 
         L = self.blade[-1]['position'][2]
         block_divisions = []
@@ -477,12 +477,12 @@ class OpenFoamBlockMesh(object):
             if airfoil['airfoil'].type is 'circle':
                 offset_airfoil = offset_airfoil[50:-50]
 
-            # FIXME rename p1_2_distance a,d add it with angle to the mesh params
+            # TODO add angle and parts to the mesh params
             parts = 10.
             angle = 60.
-            p = np.insert(split_curve(midline_coords,parts),2, airfoil['position'][2], axis=1)
+            p = np.insert(split_curve(midline_coords, parts), 2, airfoil['position'][2], axis=1)
             p0 = p[0]
-            p1 = p[(len(p)-1)/2]
+            p1 = p[(len(p) - 1) / 2]
             p2 = p[-1]
 
             normal_to_1 = [p1, p2]
@@ -530,12 +530,12 @@ class OpenFoamBlockMesh(object):
 
             blocks.append(
                 [
-                    [form_blocks(b0, inc * iter), [20, 15, 2], [1, 1, 1]],
-                    [form_blocks(b1, inc * iter), [15, 15, 2], [1, 1, 1]],
-                    [form_blocks(b2, inc * iter), [15, 15, 2], [1, 1, 1]],
-                    [form_blocks(b3, inc * iter), [20, 15, 2], [1, 1, 1]],
-                    [form_blocks(b4, inc * iter), [15, 15, 2], [1, 1, 1]],
-                    [form_blocks(b5, inc * iter), [15, 15, 2], [1, 1, 1]],
+                    [form_blocks(b0, inc * iter), [50, 20, 2], [1, 1, 1]],
+                    [form_blocks(b1, inc * iter), [25, 20, 2], [1, 1, 1]],
+                    [form_blocks(b2, inc * iter), [25, 20, 2], [1, 1, 1]],
+                    [form_blocks(b3, inc * iter), [50, 20, 2], [1, 1, 1]],
+                    [form_blocks(b4, inc * iter), [25, 20, 2], [1, 1, 1]],
+                    [form_blocks(b5, inc * iter), [25, 20, 2], [1, 1, 1]],
                 ]
             )
 
@@ -577,7 +577,7 @@ class OpenFoamBlockMesh(object):
                 [i + inc * iter for i in f5],
 
             ])
-
+            #
             # # # FIXME add points label to plot
             # fig = plt.figure()
             # ax = fig.add_subplot(111, aspect='equal')
@@ -614,8 +614,8 @@ class OpenFoamBlockMesh(object):
 
         # TODO splines radial direction
         # splines radial directions
-        # trasposed_vertices = map(list,zip(*vertices))[0]
-        # bspline([i[1] for i in trasposed_vertices])
+        trasposed_vertices = map(list, zip(*vertices))[0]
+        a = bspline(increase_resolution(np.array([i[1] for i in trasposed_vertices]), 100), n=300, degree=6)
 
         # extend and reorder elements
         vertices = ((id, val[1]) for id, val in enumerate((j for i in vertices for j in i)))
@@ -629,7 +629,6 @@ class OpenFoamBlockMesh(object):
                 grading = blk[2]
                 final_blocks.append([b, cells, grading, ])
 
-        # blocks = [j for i in blocks[:-1] for j in i]
         faces = (j for i in faces[:-1] for j in i)
         face = [['Blade', 'wall', faces], ]
 

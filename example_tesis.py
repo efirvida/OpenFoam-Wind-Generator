@@ -2,15 +2,15 @@ from windturbine import *
 
 # DDefinir perfiles
 airfoil = Airfoils
-perfil = airfoil('S809.dat')
-# perfil = airfoil('naca4', denomination='9523')
+# perfil = airfoil('S809.dat')
+perfil = airfoil('naca4', denomination='9523')
 
 # plotear perfiles
 # perfil.plot()
 
 # Definicion de la pala
 blade = {
-    'blade_twist': 0.,
+    'blade_twist': 40.,
     'airfoils': [
         # {'airfoil': circle, 'position': [x,y,r], 'twist': angle, 'scale': scale},
         {'airfoil': perfil, 'position': [0.0, 0.0, 0.0000], 'twist': 0.0, 'scale': 0.218},
