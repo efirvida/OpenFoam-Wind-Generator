@@ -472,13 +472,14 @@ class OpenFoamBlockMesh(object):
             midline_coords = midLine(coords)
 
             # FIXME make 3d offset and split the end circe in two parts
-            offset_airfoil = offset(coords[:, [0, 1]], self.airfoil_offset)
+            offset_value = airfoil['scale']/12
+            offset_airfoil = offset(coords[:, [0, 1]], offset_value)
             offset_airfoil = np.insert(offset_airfoil, 2, airfoil['position'][2], axis=1)
             if airfoil['airfoil'].type is 'circle':
                 offset_airfoil = offset_airfoil[50:-50]
 
             # TODO add angle and parts to the mesh params
-            parts = 10.
+            parts = 12.
             angle = 60.
             p = np.insert(split_curve(midline_coords, parts), 2, airfoil['position'][2], axis=1)
             p0 = p[0]
@@ -578,39 +579,39 @@ class OpenFoamBlockMesh(object):
 
             ])
             #
-            # # # FIXME add points label to plot
-            # fig = plt.figure()
-            # ax = fig.add_subplot(111, aspect='equal')
-            # ax.plot(coords[:, 0], coords[:, 1],'-')
-            # ax.plot(midline_coords[:, 0], midline_coords[:, 1],'x')
-            # # # ax.plot(coords[len(coords) / 2, 0], coords[len(coords) / 2, 1], 'mo')
-            # # # ax.plot(coords[0, 0], coords[0, 1], 'mo')
-            # # ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 1], 'k')
-            # # # ax.plot(offset_airfoil[0, 0], offset_airfoil[0, 1], 'bo')
-            # # # ax.plot(offset_airfoil[-1, 0], offset_airfoil[-1, 1], 'bo')
-            # # # ax.plot(midline_offset[:, 0], midline_offset[:, 1], 'b-')
-            # # # ax.plot(spline0[:, 0], spline0[:, 1], 'x')
-            # # # ax.plot(spline1[:, 0], spline1[:, 1], 'x')
-            # # # ax.plot(spline2[:, 0], spline2[:, 1], 'x')
-            # # # ax.plot(spline3[:, 0], spline3[:, 1], 'x')
-            # # # ax.plot(spline4[:, 0], spline4[:, 1], 'x')
-            # # # ax.plot(spline5[:, 0], spline5[:, 1], 'x')
-            # # # ax.plot(spline6[:, 0], spline6[:, 1], '-')
-            # # # ax.plot(spline7[:, 0], spline7[:, 1], '-')
-            # # # ax.plot(spline8[:, 0], spline8[:, 1], '-')
-            # # # ax.plot(spline9[:, 0], spline9[:, 1], '-')
-            # # # ax.plot(spline10[:, 0], spline10[:, 1], '-')
-            # # # ax.plot(spline11[:, 0], spline11[:, 1], '-')
-            # # # ax.plot(tmp_3[0], tmp_3[1], 'ro')
-            # # # ax.plot(tmp_4[0], tmp_4[1], 'ro')
-            # # # ax.plot(tmp_6[0], tmp_6[1], 'ro')
-            # # # ax.plot(tmp_7[0], tmp_7[1], 'ro')
-            # #
-            # for p in points:
-            #     ax.plot(p[1][0], p[1][1], 'bo')
+            # # FIXME add points label to plot
+            fig = plt.figure()
+            ax = fig.add_subplot(111, aspect='equal')
+            ax.plot(coords[:, 0], coords[:, 1],'-')
+            ax.plot(midline_coords[:, 0], midline_coords[:, 1],'x')
+            # # ax.plot(coords[len(coords) / 2, 0], coords[len(coords) / 2, 1], 'mo')
+            # # ax.plot(coords[0, 0], coords[0, 1], 'mo')
+            ax.plot(offset_airfoil[:, 0], offset_airfoil[:, 1], 'k')
+            # # ax.plot(offset_airfoil[0, 0], offset_airfoil[0, 1], 'bo')
+            # # ax.plot(offset_airfoil[-1, 0], offset_airfoil[-1, 1], 'bo')
+            # # ax.plot(midline_offset[:, 0], midline_offset[:, 1], 'b-')
+            # # ax.plot(spline0[:, 0], spline0[:, 1], 'x')
+            # # ax.plot(spline1[:, 0], spline1[:, 1], 'x')
+            # # ax.plot(spline2[:, 0], spline2[:, 1], 'x')
+            # # ax.plot(spline3[:, 0], spline3[:, 1], 'x')
+            # # ax.plot(spline4[:, 0], spline4[:, 1], 'x')
+            # # ax.plot(spline5[:, 0], spline5[:, 1], 'x')
+            # # ax.plot(spline6[:, 0], spline6[:, 1], '-')
+            # # ax.plot(spline7[:, 0], spline7[:, 1], '-')
+            # # ax.plot(spline8[:, 0], spline8[:, 1], '-')
+            # # ax.plot(spline9[:, 0], spline9[:, 1], '-')
+            # # ax.plot(spline10[:, 0], spline10[:, 1], '-')
+            # # ax.plot(spline11[:, 0], spline11[:, 1], '-')
+            # # ax.plot(tmp_3[0], tmp_3[1], 'ro')
+            # # ax.plot(tmp_4[0], tmp_4[1], 'ro')
+            # # ax.plot(tmp_6[0], tmp_6[1], 'ro')
+            # # ax.plot(tmp_7[0], tmp_7[1], 'ro')
             #
-            # ax.grid()
-            # plt.show()
+            for p in points:
+                ax.plot(p[1][0], p[1][1], 'bo')
+
+            ax.grid()
+            plt.show()
 
         # TODO splines radial direction
         # splines radial directions
