@@ -1,4 +1,4 @@
-from math import cos, sin, atan, sqrt, radians
+from math import cos, sin, atan, sqrt, radians, acos
 
 try:
     from OCC.BRepBuilderAPI import (BRepBuilderAPI_MakeEdge,
@@ -199,7 +199,8 @@ def offset(coordinates, distance):
 
     data = clean(np.array(points))
     arc = arc2points_np(zero_point, data[0], data[-1])
-    return np.concatenate([arc[:50][::-1],data,arc[50:][::-1]])
+    return np.concatenate([arc[:50][::-1], data, arc[50:][::-1]])
+
 
 def mid_point(pair1, pair2):
     x = (pair1[0][0] + pair1[1][0]) / 2
@@ -227,16 +228,16 @@ def getExtemePoints(coordinates):
     min_y = np.argmin(coordinates[:, 1])
     return (max_x, max_y, min_x, min_y)
 
+#
+
 
 def nearest(arr0, arr1):
-    ptos = []
-    j = 0
-    for i in arr0:
-        distance, index = spatial.KDTree(arr1).query(i)
-        ptos.append([distance, index, j])
-        j += 1
-    ptos.sort()
-    return (arr1[ptos[0][1]].tolist(), ptos[0][1], ptos[0][2])
+    tree = spatial.KDTree(arr1)
+    distance, arr1_index = tree.query(arr0)
+    best_arr0 = distance.argmin()
+    best_arr1 = arr1_index[best_arr0]
+    two_closest_points = (arr0[best_arr0], arr1[best_arr1])[0]
+    return two_closest_points, best_arr1, best_arr0
 
 
 def end_point_line(point_0, angle, length, normal_line_points):
@@ -436,20 +437,42 @@ def bspline(cv, n=100, degree=3, periodic=False):
     return points
 
 
-def increase_resolution(coords, res = 200):
+def increase_resolution(coords, res=200):
     from scipy.ndimage.interpolation import map_coordinates
 
     A = coords
     new_dims = []
     for original_length, new_length in zip(A.shape, (res, A.shape[1])):
-        new_dims.append(np.linspace(0, original_length-1, new_length))
+        new_dims.append(np.linspace(0, original_length - 1, new_length))
 
     return map_coordinates(A, np.meshgrid(*new_dims, indexing='ij'))
 
+
 def split_curve(arr, npts):
-    x = arr[:,0]
-    y = arr[:,1]
+    x = arr[:, 0]
+    y = arr[:, 1]
     f = interp1d(x, y)
-    xnew = np.linspace(x.min(), x.max(), num=npts, endpoint=False)
+    xnew = np.linspace(x[-1], x[0], num=npts, endpoint=False)
     ynew = f(xnew)
-    return zip(xnew[1:],ynew[1:])
+    return zip(xnew[1:], ynew[1:])
+
+
+def mid_point(p0, p1):
+    """
+    Devuelve el punto medio de un arco definido entre entre `p0` y `p1`
+    :param p0:
+    :param p1:
+    :return:
+    """
+    x1, y1, z1 = p0
+    x2, y2, z2 = p1
+    r = sqrt(x1 ** 2 + y1 ** 2)
+    # alfa1 = acos(x1 / r)
+    # alfa2 = acos(x2 / r)
+    # alfa = (alfa2 + alfa1) / 2
+    # x = cos(alfa) * r
+    # y = sin(alfa) * r
+    x = r * (x1 + x2) / sqrt((x1 + x2) ** 2 + (y1 + y2) ** 2)
+    y = x * (y1 + y2) / (x1 + x2)
+    z = z1
+    return x, y, z
